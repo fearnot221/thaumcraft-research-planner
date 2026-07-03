@@ -845,12 +845,12 @@
       <div class="result-list">
         <h2>路線步驟</h2>
         <ol id="steps"></ol>
-        <p id="emptyResult">把研究一開始生成的元素拖到盤面對應格子後，按「自動連接固定元素」。</p>
+        <p id="emptyResult">把研究一開始生成的元素拖到盤面對應格子後，按「自動連接」。重複元素會自動挑材料成本最低的位置使用。</p>
       </div>
 
       <div class="notes">
         <h2>使用假設</h2>
-        <p>拖曳模式會依目前 JSON 找固定元素間的低成本路線。成本預設為「放置該 aspect 需要消耗的研究點或材料量」，可在下方 JSON 調整 <code>cost</code> 與 <code>components</code>。</p>
+        <p>拖曳模式會依目前 JSON 找固定元素間的低成本路線；若同一個 aspect 有多顆固定元素，會自動選擇成本最低的一顆參與連線。成本預設為「放置該 aspect 需要消耗的研究點或材料量」，可在下方 JSON 調整 <code>cost</code> 與 <code>components</code>。</p>
       </div>
 
       <details class="notes">
@@ -1357,6 +1357,133 @@ const HUIJI_ICON_URLS = {
       return path;
     }
 
+    function solveCellRoute(cells, fixedByKey, assignments = new Map()) {
+      const start = fixedByKey.get(cells[0]);
+      const end = fixedByKey.get(cells[cells.length - 1]);
+      if (!start || !end || !state.aspects[start] || !state.aspects[end]) return null;
+      let layer = new Map([[start, { cost: 0, route: [start] }]]);
+      for (let index = 1; index < cells.length; index++) {
+        const cellKeyAtStep = cells[index];
+        const fixedAspect = fixedByKey.get(cellKeyAtStep);
+        const assignedAspect = assignments.get(cellKeyAtStep);
+        const forcedAspect = fixedAspect || assignedAspect;
+        const nextLayer = new Map();
+        for (const entry of layer.values()) {
+          const current = entry.route[entry.route.length - 1];
+          for (const next of neighborsOf(current)) {
+            if (forcedAspect && next.id !== forcedAspect) continue;
+            const nextRoute = entry.route.concat(next.id);
+            const addedCost = fixedAspect || assignedAspect ? 0 : Number(state.aspects[next.id]?.cost ?? 1);
+            const cost = entry.cost + addedCost;
+            const old = nextLayer.get(next.id);
+            if (!old || cost < old.cost) nextLayer.set(next.id, { cost, route: nextRoute });
+          }
+        }
+        layer = nextLayer;
+      }
+      return layer.get(end) || null;
+    }
+
+    function routeIncrement(route, cells, assignments, fixedByKey) {
+      let cost = 0;
+      let placed = 0;
+      for (let index = 0; index < cells.length; index++) {
+        const key = cells[index];
+        const aspect = route[index];
+        const fixedAspect = fixedByKey.get(key);
+        if (fixedAspect) {
+          if (fixedAspect !== aspect) return null;
+          continue;
+        }
+        const existing = assignments.get(key);
+        if (existing && existing !== aspect) return null;
+        if (!existing) {
+          cost += Number(state.aspects[aspect]?.cost ?? 1);
+          placed++;
+        }
+      }
+      return { cost, placed };
+    }
+
+    function fixedAspectChoices(fixed) {
+      const groups = new Map();
+      for (const item of fixed) {
+        if (!groups.has(item.aspect)) groups.set(item.aspect, []);
+        groups.get(item.aspect).push(item);
+      }
+      const groupList = [...groups.values()];
+      const choices = [];
+      const limit = 5000;
+      function walk(index, picked) {
+        if (choices.length >= limit) return;
+        if (index === groupList.length) {
+          choices.push(picked.slice());
+          return;
+        }
+        for (const item of groupList[index]) walk(index + 1, picked.concat(item));
+      }
+      walk(0, []);
+      return choices;
+    }
+
+    function buildConnectionPlan(selectedFixed, allFixedByKey) {
+      const connected = new Set([selectedFixed[0].key]);
+      const remaining = new Set(selectedFixed.slice(1).map(item => item.key));
+      const selectedByKey = new Map(selectedFixed.map(item => [item.key, item.aspect]));
+      const assignments = new Map();
+      const routes = [];
+
+      while (remaining.size) {
+        let best = null;
+        for (const fromKey of connected) {
+          for (const toKey of remaining) {
+            const cells = shortestCellPath(fromKey, toKey);
+            if (!cells) continue;
+            const solved = solveCellRoute(cells, allFixedByKey, assignments);
+            if (!solved) continue;
+            const increment = routeIncrement(solved.route, cells, assignments, allFixedByKey);
+            if (!increment) continue;
+            if (
+              !best ||
+              increment.cost < best.increment.cost ||
+              (increment.cost === best.increment.cost && increment.placed < best.increment.placed) ||
+              (increment.cost === best.increment.cost && increment.placed === best.increment.placed && cells.length < best.cells.length)
+            ) {
+              best = { fromKey, toKey, cells, route: solved.route, increment };
+            }
+          }
+        }
+
+        if (!best) return null;
+
+        best.cells.forEach((key, index) => {
+          if (!allFixedByKey.has(key)) assignments.set(key, best.route[index]);
+          if (selectedByKey.has(key) && best.route[index] === selectedByKey.get(key)) {
+            connected.add(key);
+            remaining.delete(key);
+          }
+        });
+        connected.add(best.toKey);
+        remaining.delete(best.toKey);
+        routes.push({
+          label: `${allFixedByKey.get(best.fromKey)} @ ${best.fromKey} → ${allFixedByKey.get(best.toKey)} @ ${best.toKey}`,
+          route: best.route,
+          cost: best.increment.cost,
+          placed: best.increment.placed
+        });
+      }
+
+      const placedEntries = [...assignments.entries()].filter(([key]) => !allFixedByKey.has(key));
+      const totalCost = placedEntries.reduce((sum, [, aspect]) => sum + Number(state.aspects[aspect]?.cost ?? 1), 0);
+      return {
+        assignments,
+        routes,
+        totalCost,
+        totalPlaced: placedEntries.length,
+        longest: routes.reduce((max, item) => Math.max(max, item.route.length), 0)
+      };
+    }
+
     function renderHexBoard(assignments = new Map()) {
       const radius = currentRadius();
       const metrics = boardMetrics(radius);
@@ -1427,42 +1554,29 @@ const HUIJI_ICON_URLS = {
         return;
       }
 
-      const connected = new Set([fixed[0].key]);
-      const remaining = new Set(fixed.slice(1).map(item => item.key));
       const fixedByKey = new Map(fixed.map(item => [item.key, item.aspect]));
-      const assignments = new Map(fixedByKey);
-      const routes = [];
-
-      while (remaining.size) {
-        let best = null;
-        for (const fromKey of connected) {
-          for (const toKey of remaining) {
-            const cells = shortestCellPath(fromKey, toKey);
-            if (!cells) continue;
-            const start = assignments.get(fromKey) || fixedByKey.get(fromKey);
-            const end = fixedByKey.get(toKey);
-            const solved = solveExactSteps(start, end, cells.length - 1);
-            if (!solved) continue;
-            const cost = routeCost(solved.route);
-            if (!best || cost < best.cost || (cost === best.cost && cells.length < best.cells.length)) {
-              best = { fromKey, toKey, cells, route: solved.route, cost };
-            }
+      const choices = fixedAspectChoices(fixed);
+      let bestPlan = null;
+      for (const selectedFixed of choices) {
+        if (selectedFixed.length < 2) continue;
+        for (let rootIndex = 0; rootIndex < selectedFixed.length; rootIndex++) {
+          const rootedFixed = selectedFixed.slice(rootIndex).concat(selectedFixed.slice(0, rootIndex));
+          const plan = buildConnectionPlan(rootedFixed, fixedByKey);
+          if (!plan) continue;
+          if (
+            !bestPlan ||
+            plan.totalCost < bestPlan.totalCost ||
+            (plan.totalCost === bestPlan.totalCost && plan.totalPlaced < bestPlan.totalPlaced) ||
+            (plan.totalCost === bestPlan.totalCost && plan.totalPlaced === bestPlan.totalPlaced && plan.longest < bestPlan.longest)
+          ) {
+            bestPlan = plan;
           }
         }
-
-        if (!best) {
-          break;
-        }
-
-        best.cells.forEach((key, index) => assignments.set(key, best.route[index]));
-        connected.add(best.toKey);
-        remaining.delete(best.toKey);
-        routes.push({ label: `${fixedByKey.get(best.fromKey)} @ ${best.fromKey} → ${fixedByKey.get(best.toKey)} @ ${best.toKey}`, route: best.route });
       }
 
-      renderHexBoard(assignments);
-      if (!routes.length || remaining.size) {
-        el.routeGrid.innerHTML = '<p>固定點之間找不到符合格數的 aspect 路線。可以移動固定點，或在右側 JSON 補 aspect 關係。</p>';
+      if (!bestPlan) {
+        renderHexBoard(new Map());
+        el.routeGrid.innerHTML = '<p>固定點之間找不到低成本連線。可以移動固定點、封住多餘格，或在右側 JSON 補 aspect 關係。</p>';
         el.placedCount.textContent = '-';
         el.totalCost.textContent = '-';
         el.routeLength.textContent = '-';
@@ -1470,7 +1584,9 @@ const HUIJI_ICON_URLS = {
         el.emptyResult.style.display = 'block';
         return;
       }
-      renderMultiRoutes(routes, '任意固定元素自動連線');
+
+      renderHexBoard(bestPlan.assignments);
+      renderMultiRoutes(bestPlan.routes, '最少材料自動連線', bestPlan);
     }
 
     function renderRoute(result) {
@@ -1518,14 +1634,14 @@ const HUIJI_ICON_URLS = {
       return route.slice(1, -1).reduce((sum, id) => sum + Number(state.aspects[id]?.cost ?? 1), 0);
     }
 
-    function renderMultiRoutes(routes, title) {
-      state.lastRoute = { routes, title };
-      const totalPlaced = routes.reduce((sum, item) => sum + Math.max(0, item.route.length - 2), 0);
-      const totalCost = routes.reduce((sum, item) => sum + routeCost(item.route), 0);
-      const longest = routes.reduce((max, item) => Math.max(max, item.route.length), 0);
+    function renderMultiRoutes(routes, title, plan = null) {
+      state.lastRoute = { routes, title, plan };
+      const totalPlaced = plan?.totalPlaced ?? routes.reduce((sum, item) => sum + Math.max(0, item.route.length - 2), 0);
+      const totalCost = plan?.totalCost ?? routes.reduce((sum, item) => sum + routeCost(item.route), 0);
+      const longest = plan?.longest ?? routes.reduce((max, item) => Math.max(max, item.route.length), 0);
       el.routeGrid.innerHTML = `<div class="multi-routes">${routes.map(item => `
         <div class="route-row">
-          <div class="route-title"><strong>${item.label}</strong><span>放置 ${Math.max(0, item.route.length - 2)} · cost ${routeCost(item.route)}</span></div>
+          <div class="route-title"><strong>${item.label}</strong><span>新增 ${item.placed ?? Math.max(0, item.route.length - 2)} · cost ${item.cost ?? routeCost(item.route)}</span></div>
           <div class="route-line">${item.route.map((id, index) => {
             const fixed = index === 0 || index === item.route.length - 1;
             const node = `<div class="node ${fixed ? 'fixed' : ''}">${aspectMarkup(id, true)}<div class="node-cost">${state.aspects[id]?.zh || ''} · ${state.aspects[id]?.cost ?? 1}</div></div>`;
@@ -1699,7 +1815,7 @@ const HUIJI_ICON_URLS = {
     el.iconTemplate.addEventListener('change', () => {
       renderAspectList();
       renderHexBoard(new Map());
-      if (state.lastRoute?.routes) renderMultiRoutes(state.lastRoute.routes, state.lastRoute.title || '路線');
+      if (state.lastRoute?.routes) renderMultiRoutes(state.lastRoute.routes, state.lastRoute.title || '路線', state.lastRoute.plan || null);
       else if (state.lastRoute?.route) renderRoute(state.lastRoute);
     });
     document.querySelector('#applyDataBtn').addEventListener('click', applyDataFromEditor);
