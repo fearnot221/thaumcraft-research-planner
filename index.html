@@ -1484,6 +1484,137 @@ const HUIJI_ICON_URLS = {
       };
     }
 
+    function nodeId(key, aspect) {
+      return `${key}|${aspect}`;
+    }
+
+    function parseNodeId(id) {
+      const separator = id.lastIndexOf('|');
+      return { key: id.slice(0, separator), aspect: id.slice(separator + 1) };
+    }
+
+    function nodeCost(id, fixedByKey) {
+      const { key, aspect } = parseNodeId(id);
+      return fixedByKey.has(key) ? 0 : Number(state.aspects[aspect]?.cost ?? 1);
+    }
+
+    function possibleNodeIds(key, fixedByKey) {
+      const fixedAspect = fixedByKey.get(key);
+      if (fixedAspect) return state.aspects[fixedAspect] ? [nodeId(key, fixedAspect)] : [];
+      return Object.keys(state.aspects).map(aspect => nodeId(key, aspect));
+    }
+
+    function relatedAspects(from, to) {
+      return neighborsOf(from).some(item => item.id === to);
+    }
+
+    function steinerNeighbors(id, fixedByKey) {
+      const { key, aspect } = parseNodeId(id);
+      return boardNeighbors(parseCellKey(key)).flatMap(cell => {
+        const nextKey = cellKey(cell);
+        return possibleNodeIds(nextKey, fixedByKey).filter(nextId => relatedAspects(aspect, parseNodeId(nextId).aspect));
+      });
+    }
+
+    function relaxSteinerLayer(dist, back, fixedByKey) {
+      const settled = new Set();
+      while (settled.size < dist.size) {
+        let current = null;
+        let currentCost = Infinity;
+        for (const [id, cost] of dist) {
+          if (!settled.has(id) && cost < currentCost) {
+            current = id;
+            currentCost = cost;
+          }
+        }
+        if (!current) break;
+        settled.add(current);
+        for (const next of steinerNeighbors(current, fixedByKey)) {
+          const cost = currentCost + nodeCost(next, fixedByKey);
+          if (cost < (dist.get(next) ?? Infinity)) {
+            dist.set(next, cost);
+            back.set(next, { type: 'move', from: current });
+          }
+        }
+      }
+    }
+
+    function collectSteinerNodes(mask, id, backs, out = new Set()) {
+      out.add(id);
+      const back = backs[mask]?.get(id);
+      if (!back) return out;
+      if (back.type === 'move') collectSteinerNodes(mask, back.from, backs, out);
+      else {
+        collectSteinerNodes(back.left, id, backs, out);
+        collectSteinerNodes(back.right, id, backs, out);
+      }
+      return out;
+    }
+
+    function buildSteinerPlan(selectedFixed, allFixedByKey) {
+      if (selectedFixed.length < 2 || selectedFixed.length > 10) return null;
+      const boardKeys = boardCells().map(cellKey).filter(key => !state.blockedCells.has(key));
+      const fullMask = (1 << selectedFixed.length) - 1;
+      const dists = Array.from({ length: fullMask + 1 }, () => new Map());
+      const backs = Array.from({ length: fullMask + 1 }, () => new Map());
+
+      selectedFixed.forEach((item, index) => {
+        const id = nodeId(item.key, item.aspect);
+        dists[1 << index].set(id, 0);
+      });
+
+      for (let mask = 1; mask <= fullMask; mask++) {
+        for (let left = (mask - 1) & mask; left; left = (left - 1) & mask) {
+          const right = mask ^ left;
+          if (!right || left > right) continue;
+          for (const key of boardKeys) {
+            for (const id of possibleNodeIds(key, allFixedByKey)) {
+              const leftCost = dists[left].get(id);
+              const rightCost = dists[right].get(id);
+              if (leftCost === undefined || rightCost === undefined) continue;
+              const cost = leftCost + rightCost - nodeCost(id, allFixedByKey);
+              if (cost < (dists[mask].get(id) ?? Infinity)) {
+                dists[mask].set(id, cost);
+                backs[mask].set(id, { type: 'join', left, right });
+              }
+            }
+          }
+        }
+        relaxSteinerLayer(dists[mask], backs[mask], allFixedByKey);
+      }
+
+      let bestId = null;
+      let bestCost = Infinity;
+      for (const [id, cost] of dists[fullMask]) {
+        if (cost < bestCost) {
+          bestId = id;
+          bestCost = cost;
+        }
+      }
+      if (!bestId) return null;
+
+      const nodes = [...collectSteinerNodes(fullMask, bestId, backs)];
+      const assignments = new Map();
+      for (const id of nodes) {
+        const { key, aspect } = parseNodeId(id);
+        if (!allFixedByKey.has(key)) assignments.set(key, aspect);
+      }
+      const placedAspects = [...assignments.values()];
+      const selectedLabels = selectedFixed.map(item => `${item.aspect} @ ${item.key}`).join('、');
+      return {
+        assignments,
+        routes: [{
+          label: `最小材料連通網路：${selectedLabels}`,
+          route: placedAspects.length ? placedAspects : selectedFixed.map(item => item.aspect),
+          cost: bestCost,
+          placed: assignments.size
+        }],
+        totalCost: bestCost,
+        totalPlaced: assignments.size,
+        longest: nodes.length
+      };
+    }
+
     function renderHexBoard(assignments = new Map()) {
       const radius = currentRadius();
       const metrics = boardMetrics(radius);
@@ -1561,7 +1692,7 @@ const HUIJI_ICON_URLS = {
         if (selectedFixed.length < 2) continue;
         for (let rootIndex = 0; rootIndex < selectedFixed.length; rootIndex++) {
           const rootedFixed = selectedFixed.slice(rootIndex).concat(selectedFixed.slice(0, rootIndex));
-          const plan = buildConnectionPlan(rootedFixed, fixedByKey);
+          const plan = buildSteinerPlan(rootedFixed, fixedByKey) || buildConnectionPlan(rootedFixed, fixedByKey);
           if (!plan) continue;
           if (
             !bestPlan ||
