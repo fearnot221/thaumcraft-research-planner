@@ -1698,7 +1698,7 @@ const HUIJI_ICON_URLS = {
       let bestPlan = null;
       for (const selectedFixed of choices) {
         if (selectedFixed.length < 2) continue;
-        const plan = (selectedFixed.length <= 6 ? buildSteinerPlan(selectedFixed, fixedByKey) : null) || buildConnectionPlan(selectedFixed, fixedByKey);
+        const plan = buildConnectionPlan(selectedFixed, fixedByKey);
         if (!plan) continue;
         if (
           !bestPlan ||
@@ -1731,7 +1731,7 @@ const HUIJI_ICON_URLS = {
       autoConnectTimer = setTimeout(() => {
         autoConnectTimer = 0;
         autoConnectFixedCells();
-      }, 80);
+      }, 180);
     }
 
     function renderRoute(result) {
