@@ -1,0 +1,1705 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GTNH Thaumcraft Research Planner</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101214;
+      --panel: #181c20;
+      --panel-2: #20262b;
+      --line: #313941;
+      --text: #edf2f4;
+      --muted: #aab4bc;
+      --accent: #77d8c0;
+      --accent-2: #f2c36b;
+      --bad: #ff8878;
+      --good: #91e087;
+      --focus: #9cc9ff;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      height: 100vh;
+      overflow: hidden;
+      background: var(--page-bg, var(--bg));
+      color: var(--page-text, var(--text));
+    }
+
+    button, input, select, textarea { font: inherit; }
+
+    .app {
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      grid-template-columns: minmax(260px, 300px) minmax(520px, 1fr) minmax(260px, 300px);
+      gap: 1px;
+      background: var(--page-bg, #24190f);
+    }
+
+    .intro {
+      grid-column: 1 / -1;
+      background: var(--page-bg, #17120e);
+      border-bottom: 1px solid #3a2b1b;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      color: var(--page-text, var(--text));
+    }
+
+    .intro-copy {
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .intro h1 {
+      margin: 0;
+      flex: 0 0 auto;
+      white-space: nowrap;
+      font-size: 17px;
+    }
+
+    .intro p {
+      margin: 0;
+      max-width: none;
+      min-width: 0;
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .intro-search {
+      width: min(360px, 30vw);
+      margin: 0;
+      flex: 0 0 auto;
+      padding: 7px 9px;
+    }
+
+    .pane {
+      background: var(--page-bg, #17120e);
+      min-width: 0;
+      overflow: auto;
+      max-height: calc(100vh - 48px);
+      color: var(--page-text, var(--text));
+    }
+
+    .pane-inner { padding: 12px; }
+
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: 19px; line-height: 1.25; }
+    h2 { font-size: 15px; margin-bottom: 10px; }
+    h3 { font-size: 13px; color: var(--page-muted, var(--muted)); margin-bottom: 8px; }
+    p { color: var(--page-muted, var(--muted)); line-height: 1.55; font-size: 14px; }
+
+    .topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .badge {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .search {
+      width: 100%;
+      margin: 14px 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0d0f11;
+      color: var(--text);
+      padding: 10px 11px;
+      outline: none;
+    }
+
+    .search:focus { border-color: var(--focus); }
+
+    .aspect-list {
+      display: grid;
+      grid-template-columns: repeat(4, 52px);
+      gap: 5px;
+      justify-content: center;
+    }
+
+    .aspect-chip {
+      position: relative;
+      width: 52px;
+      height: 52px;
+      min-width: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 0;
+      border-radius: 2px;
+      background: transparent;
+      color: var(--text);
+      padding: 3px;
+      cursor: grab;
+      user-select: none;
+      box-shadow: inset 0 0 0 1px rgba(235, 213, 168, .28);
+    }
+
+    .aspect-chip.unsupported {
+      opacity: .55;
+      cursor: default;
+      filter: grayscale(.35);
+    }
+
+    .aspect-chip.empty {
+      pointer-events: none;
+      box-shadow: inset 0 0 0 1px rgba(235, 213, 168, .12);
+    }
+
+    .aspect-chip:active { cursor: grabbing; }
+    .aspect-chip:hover { box-shadow: inset 0 0 0 1px var(--accent); }
+
+    .aspect-chip::after {
+      content: attr(data-label);
+      position: absolute;
+      left: 50%;
+      top: calc(100% + 8px);
+      transform: translateX(-50%) translateY(4px);
+      z-index: 20;
+      min-width: max-content;
+      max-width: 180px;
+      pointer-events: none;
+      opacity: 0;
+      padding: 5px 8px;
+      border: 1px solid rgba(235, 213, 168, .45);
+      border-radius: 5px;
+      background: rgba(18, 13, 8, .96);
+      color: #fff1ca;
+      font-size: 12px;
+      line-height: 1.35;
+      text-align: center;
+      white-space: pre-line;
+      box-shadow: 0 8px 18px rgba(0,0,0,.35);
+      transition: opacity .12s ease, transform .12s ease;
+    }
+
+    .aspect-chip:hover::after,
+    .aspect-chip:focus-visible::after {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    body.dragging-aspect .aspect-chip::after {
+      display: none;
+    }
+
+    .drag-ghost {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 24px;
+      height: 24px;
+      pointer-events: none;
+      display: grid;
+      place-items: center;
+      opacity: .96;
+      transform: translate(-200vw, -200vh);
+    }
+
+    .drag-ghost .glyph {
+      width: 24px;
+      height: 24px;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+    }
+
+    .glyph {
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      display: inline-grid;
+      place-items: center;
+      flex: 0 0 auto;
+      background: transparent;
+      border: 1px solid rgba(255,255,255,.28);
+      color: rgba(255,255,255,.86);
+      font-size: 13px;
+      font-weight: 800;
+      text-shadow: 0 1px 2px rgba(0,0,0,.5);
+    }
+
+    .glyph img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    .aspect-chip .glyph {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      border-radius: 0;
+    }
+
+    .chip-text { min-width: 0; }
+    .name { display: block; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .meta { display: block; font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+    .workbench {
+      padding: 10px;
+      min-height: 0;
+      overflow: auto;
+      background: var(--page-bg, radial-gradient(circle at 50% 42%, #5d4224 0, #2c1f13 46%, #17100b 100%));
+      color: var(--text);
+    }
+
+    .workbench h2,
+    .workbench li {
+      color: var(--text);
+    }
+
+    .workbench h3,
+    .workbench p,
+    .workbench .field label,
+    .workbench .metric span {
+      color: var(--muted);
+    }
+
+    .workbench code {
+      color: var(--accent);
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .drop-slot {
+      min-height: 96px;
+      border: 1px dashed #59646d;
+      border-radius: 8px;
+      background: #171c20;
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .drop-slot.drag-over { border-color: var(--accent); background: #1a2424; }
+    .slot-label { color: var(--muted); font-size: 13px; display: block; margin-bottom: 8px; }
+    .slot-value { display: flex; align-items: center; gap: 9px; min-width: 0; }
+    .slot-value strong { font-size: 18px; }
+
+    .slot-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 9px 10px;
+      cursor: pointer;
+    }
+    .button:hover { border-color: var(--accent); }
+    .button.primary { background: #1f403a; border-color: #347566; }
+    .button.warn { border-color: #6f453f; color: #ffd3cc; }
+
+    .grid-wrap {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0f1214;
+      padding: 16px;
+      overflow: auto;
+    }
+
+    .route-grid {
+      min-height: 280px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 18px 8px;
+    }
+
+    .node {
+      width: 86px;
+      min-width: 86px;
+      height: 86px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      border: 1px solid var(--line);
+      background: #1a2024;
+      position: relative;
+    }
+
+    .node .glyph { width: 34px; height: 34px; font-size: 17px; margin: 0 auto 6px; }
+    .node-name { font-size: 12px; max-width: 74px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .node-cost { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .node.fixed { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+
+    .edge {
+      height: 2px;
+      min-width: 28px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      position: relative;
+      flex: 0 0 28px;
+    }
+
+    .multi-routes {
+      min-width: 100%;
+      display: grid;
+      gap: 14px;
+      align-self: stretch;
+    }
+
+    .route-row {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #151a1e;
+      padding: 12px;
+    }
+
+    .route-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 10px;
+    }
+
+    .route-line {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      overflow-x: auto;
+      padding: 4px;
+    }
+
+    .edge::after {
+      content: attr(data-reason);
+      position: absolute;
+      left: 50%;
+      top: 8px;
+      transform: translateX(-50%);
+      color: var(--muted);
+      font-size: 10px;
+      white-space: nowrap;
+    }
+
+    .summary {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: var(--panel);
+    }
+    .metric span { color: var(--muted); font-size: 12px; display: block; }
+    .metric strong { display: block; font-size: 20px; margin-top: 4px; }
+
+    .result-list, .notes {
+      margin-top: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 12px;
+    }
+
+    .board-wrap {
+      margin-top: 0;
+      border: 1px solid #80633c;
+      border-radius: 8px;
+      background: #c4a46d;
+      color: #2a1b10;
+      padding: 12px;
+      overflow: hidden;
+      max-height: calc(100vh - 68px);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 22px 50px rgba(0,0,0,.38), inset 0 0 55px rgba(92,54,20,.34);
+    }
+
+    .board-wrap h2, .board-wrap p, .board-wrap label { color: #342312; }
+
+    .board-wrap .board-controls .field label {
+      color: #342312;
+    }
+
+    .board-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .board-header h2 {
+      font-size: 24px;
+      line-height: 1.1;
+      letter-spacing: 0;
+      margin: 0;
+    }
+
+    .board-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 8px;
+      margin-bottom: 8px;
+      border: 1px solid rgba(73, 45, 20, .35);
+      border-radius: 8px;
+      background: rgba(96, 62, 28, .18);
+    }
+
+    .action-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .board-wrap .button {
+      background: #5b4227;
+      border-color: #8b6a3e;
+      color: #fff4d8;
+      border-radius: 6px;
+      padding: 8px 11px;
+    }
+
+    .board-wrap .button.primary { background: #315b49; border-color: #41745e; }
+
+    .board-wrap .button.warn { background: #6a2f24; border-color: #8a503f; color: #ffe1d5; }
+
+    .board-hint {
+      margin-bottom: 6px !important;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .board-wrap select {
+      background: #efe0b9;
+      color: #25180d;
+      border-color: #8b6a3e;
+    }
+
+    .board-wrap input[type="number"] {
+      width: 82px;
+      border: 1px solid #8b6a3e;
+      border-radius: 6px;
+      background: #efe0b9;
+      color: #25180d;
+      padding: 7px 8px;
+      outline: none;
+    }
+
+    .board-wrap input[type="number"]:focus { border-color: #5b7d62; }
+
+    .board-wrap input[type="color"] {
+      width: 42px;
+      height: 34px;
+      border: 1px solid #8b6a3e;
+      border-radius: 6px;
+      background: #efe0b9;
+      padding: 3px;
+      cursor: pointer;
+    }
+
+    .palette {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .swatch {
+      width: 24px;
+      height: 24px;
+      border: 1px solid rgba(37, 24, 13, .55);
+      border-radius: 999px;
+      background: var(--swatch);
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .block-token {
+      width: 34px;
+      height: 34px;
+      border: 1px solid #8a503f;
+      border-radius: 6px;
+      display: inline-grid;
+      place-items: center;
+      background: #6a2f24;
+      color: #ffe1d5;
+      cursor: grab;
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1;
+      user-select: none;
+    }
+
+    .block-token:active,
+    .block-marker:active { cursor: grabbing; }
+
+    .block-tool-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: #342312;
+      font-size: 13px;
+    }
+
+    .hex-board {
+      position: relative;
+      width: min(100%, var(--board-w, 520px));
+      max-width: var(--board-w, 520px);
+      height: var(--board-h, 470px);
+      margin: 0 auto;
+      flex: 0 1 auto;
+      background: radial-gradient(circle, rgba(255,255,255,.12), transparent 58%);
+    }
+
+    .grid-wrap, .summary, .result-list, .notes {
+      margin-top: 8px;
+    }
+
+    .hex-cell {
+      position: absolute;
+      width: var(--cell-w, 58px);
+      height: var(--cell-h, 50px);
+      transform: translate(-50%, -50%);
+      clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      border: 1px solid transparent;
+      overflow: hidden;
+      z-index: 1;
+    }
+
+    .hex-cell {
+      background: rgba(92, 68, 36, .26);
+      outline: 1px solid rgba(78, 50, 22, .55);
+      color: #6c5130;
+      font-size: 11px;
+    }
+
+    .hex-cell.filled {
+      background: rgba(92, 68, 36, .26);
+      outline-color: rgba(255,255,255,.28);
+      color: #fff5dc;
+    }
+
+    .hex-cell.fixed {
+      background: rgba(92, 68, 36, .26);
+      outline-color: #f2c36b;
+      outline-width: 2px;
+    }
+
+    .hex-cell.selected {
+      box-shadow: 0 0 0 3px #e44738;
+      z-index: 3;
+    }
+
+    .hex-cell.drop-target {
+      background: #1d3030;
+      outline-color: var(--accent);
+    }
+
+    .hex-cell.blocked {
+      background: rgba(26, 20, 15, .86);
+      outline-color: #2a2119;
+      color: #806b53;
+    }
+
+    .block-marker {
+      width: var(--block-size, 24px);
+      height: var(--block-size, 24px);
+      display: inline-grid;
+      place-items: center;
+      border: 0;
+      background: transparent;
+      color: #b8996b;
+      cursor: grab;
+      font-size: 26px;
+      font-weight: 800;
+      line-height: 1;
+      user-select: none;
+    }
+
+    .hex-cell .glyph {
+      width: var(--glyph-size, 25px);
+      height: var(--glyph-size, 25px);
+      max-width: calc(var(--cell-w, 58px) * .78);
+      max-height: calc(var(--cell-h, 50px) * .84);
+      font-size: 12px;
+      margin: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+    }
+
+    .hex-label {
+      max-width: 48px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 10px;
+    }
+
+    .board-controls {
+      display: flex;
+      align-items: end;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 0;
+    }
+
+    .field label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+
+    .field select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0d0f11;
+      color: var(--text);
+      padding: 8px;
+    }
+
+    ol { margin: 0; padding-left: 22px; }
+    li { margin: 8px 0; color: var(--text); line-height: 1.4; }
+    code { color: var(--accent); }
+
+    .editor-area {
+      width: 100%;
+      min-height: 320px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0c0e10;
+      color: #dfe7eb;
+      padding: 10px;
+      line-height: 1.45;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+
+    .right-section { margin-bottom: 18px; }
+
+    .inline-controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: #342312 !important;
+      background: rgba(255, 239, 196, .32);
+      border: 1px solid rgba(101, 72, 37, .45);
+      border-radius: 6px;
+      padding: 7px 9px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .status {
+      min-height: 20px;
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 8px;
+    }
+    .status.error { color: var(--bad); }
+    .status.ok { color: var(--good); }
+
+    @media (max-width: 1100px) {
+      .app { grid-template-columns: 260px 1fr; }
+      .intro { grid-column: 1 / -1; }
+      .pane.right { grid-column: 1 / -1; max-height: none; }
+    }
+
+    @media (max-width: 760px) {
+      .app { display: block; }
+      .intro { display: block; }
+      .intro-copy { display: block; }
+      .intro h1 { margin-bottom: 4px; }
+      .intro-search { width: 100%; margin-top: 10px; }
+      .pane { max-height: none; }
+      .controls, .summary { grid-template-columns: 1fr; }
+      .workbench { min-height: auto; padding: 14px; }
+      .route-grid { min-height: 220px; }
+      .node { width: 78px; min-width: 78px; height: 78px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="intro">
+      <div class="intro-copy">
+        <h1>GTNH 神秘研究路線</h1>
+        <p>預設點每次都可能出現在任意格。設定六邊形邊長後，把遊戲生成的起始元素從左右元素庫拖到羊皮紙對應格子；需要封格時拖曳叉叉到格子。</p>
+      </div>
+      <span class="badge" id="aspectCount">0 aspects</span>
+      <input id="search" class="search intro-search" type="search" placeholder="搜尋 aspect，例如 Lux / 光 / Aer">
+    </header>
+
+    <aside class="pane">
+      <div class="pane-inner">
+        <h2>元素庫</h2>
+        <div id="aspectList" class="aspect-list" aria-label="Aspect list"></div>
+      </div>
+    </aside>
+
+    <section class="workbench">
+      <div class="board-wrap">
+        <div class="board-header">
+          <h2>研究桌</h2>
+          <div class="board-controls">
+            <div class="field"><label for="boardSize">六邊形邊長</label><input id="boardSize" type="number" min="2" max="9" value="4"></div>
+            <div class="field">
+              <label for="deskBgColor">背景顏色</label>
+              <div class="palette">
+                <input id="deskBgColor" type="color" value="#17120e" aria-label="網頁背景顏色">
+                <button class="swatch" type="button" data-bg="#000000" style="--swatch:#000000" aria-label="黑色背景"></button>
+                <button class="swatch" type="button" data-bg="#ffffff" style="--swatch:#ffffff" aria-label="白色背景"></button>
+                <button class="swatch" type="button" data-bg="#211711" style="--swatch:#211711" aria-label="保留色背景"></button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="board-actions">
+          <div class="action-group">
+            <button id="autoConnectBtn" class="button primary">自動連接</button>
+            <button id="clearSelectedCellBtn" class="button">清除選取格</button>
+            <button id="clearBoardBtn" class="button warn">清空盤面</button>
+          </div>
+          <div class="action-group">
+            <label class="toggle"><input id="autoSolveToggle" type="checkbox" checked> 放置後自動計算</label>
+            <span class="block-tool-label"><span id="blockToken" class="block-token" draggable="true" role="button" tabindex="0" aria-label="拖曳到研究桌格子標記不可放置">×</span>拖曳封格</span>
+          </div>
+        </div>
+        <p class="board-hint">操作：拖曳元素到格子，或先點格子再點元素。拖曳叉叉到格子可標記不可放置；黑色叉叉會被路線避開。</p>
+        <div id="hexBoard" class="hex-board" tabindex="0" aria-label="Thaumcraft research hex board"></div>
+      </div>
+
+      <div class="grid-wrap">
+        <div id="routeGrid" class="route-grid"></div>
+      </div>
+
+      <div class="summary">
+        <div class="metric"><span>需要放置</span><strong id="placedCount">-</strong></div>
+        <div class="metric"><span>估計材料成本</span><strong id="totalCost">-</strong></div>
+        <div class="metric"><span>路線長度</span><strong id="routeLength">-</strong></div>
+      </div>
+
+      <div class="result-list">
+        <h2>路線步驟</h2>
+        <ol id="steps"></ol>
+        <p id="emptyResult">把研究一開始生成的元素拖到盤面對應格子後，按「自動連接固定元素」。</p>
+      </div>
+
+      <div class="notes">
+        <h2>使用假設</h2>
+        <p>拖曳模式會依目前 JSON 找固定元素間的低成本路線。成本預設為「放置該 aspect 需要消耗的研究點或材料量」，可在下方 JSON 調整 <code>cost</code> 與 <code>components</code>。</p>
+      </div>
+
+      <details class="notes">
+        <summary>進階資料 / JSON</summary>
+        <div class="field" style="margin: 10px 0"><label for="iconTemplate">圖示 URL 模板</label><input id="iconTemplate" class="search" type="text" placeholder="預設使用 huiji thumb：要素_{id}.png"></div>
+        <textarea id="dataEditor" class="editor-area" spellcheck="false"></textarea>
+        <div class="inline-controls">
+          <button id="applyDataBtn" class="button primary">套用資料</button>
+          <button id="resetDataBtn" class="button warn">還原預設</button>
+        </div>
+        <div id="dataStatus" class="status"></div>
+      </details>
+
+    </section>
+
+    <aside class="pane right">
+      <div class="pane-inner">
+        <div class="right-section">
+          <h2>元素庫</h2>
+          <div id="aspectListMirror" class="aspect-list" aria-label="Aspect list mirror"></div>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    const DEFAULT_ASPECTS = {
+      Aer: { zh: '風', color: '#f0d37a', cost: 1, components: [] },
+      Aqua: { zh: '水', color: '#5da9ff', cost: 1, components: [] },
+      Ignis: { zh: '火', color: '#ff7448', cost: 1, components: [] },
+      Ordo: { zh: '秩序', color: '#d9d9d9', cost: 1, components: [] },
+      Perditio: { zh: '混沌', color: '#56545f', cost: 1, components: [] },
+      Terra: { zh: '地', color: '#55b66d', cost: 1, components: [] },
+      Gelum: { zh: '冰', color: '#9be7ff', cost: 2, components: ['Ignis', 'Perditio'] },
+      Lux: { zh: '光', color: '#ffe885', cost: 2, components: ['Aer', 'Ignis'] },
+      Motus: { zh: '動', color: '#f0f0a2', cost: 2, components: ['Aer', 'Ordo'] },
+      Permutatio: { zh: '交換', color: '#9ab5ff', cost: 2, components: ['Ordo', 'Perditio'] },
+      Potentia: { zh: '能量', color: '#d385ff', cost: 2, components: ['Ignis', 'Ordo'] },
+      Tempestas: { zh: '天氣', color: '#7bc8cf', cost: 2, components: ['Aer', 'Aqua'] },
+      Vacuos: { zh: '虛無', color: '#727080', cost: 2, components: ['Aer', 'Perditio'] },
+      Victus: { zh: '生命', color: '#b7ee77', cost: 2, components: ['Aqua', 'Terra'] },
+      Vitreus: { zh: '玻璃', color: '#a9f2ff', cost: 2, components: ['Ordo', 'Terra'] },
+      Bestia: { zh: '野獸', color: '#c68b54', cost: 3, components: ['Motus', 'Victus'] },
+      Cognitio: { zh: '認知', color: '#f2c68d', cost: 4, components: ['Ignis', 'Spiritus'] },
+      Corpus: { zh: '肉體', color: '#d98982', cost: 3, components: ['Bestia', 'Mortuus'] },
+      Exanimis: { zh: '亡靈', color: '#8b86a8', cost: 4, components: ['Motus', 'Mortuus'] },
+      Fames: { zh: '飢餓', color: '#b69467', cost: 3, components: ['Vacuos', 'Victus'] },
+      Herba: { zh: '植物', color: '#5ed05e', cost: 3, components: ['Terra', 'Victus'] },
+      Iter: { zh: '旅行', color: '#c6d0ff', cost: 3, components: ['Motus', 'Terra'] },
+      Limus: { zh: '黏液', color: '#8ccc76', cost: 3, components: ['Aqua', 'Victus'] },
+      Machina: { zh: '機械', color: '#b9c0c8', cost: 4, components: ['Instrumentum', 'Motus'] },
+      Messis: { zh: '作物', color: '#d8cf62', cost: 4, components: ['Herba', 'Humanus'] },
+      Metallum: { zh: '金屬', color: '#aeb8c2', cost: 3, components: ['Terra', 'Vitreus'] },
+      Mortuus: { zh: '死亡', color: '#6f6d7b', cost: 3, components: ['Perditio', 'Victus'] },
+      Praecantatio: { zh: '魔法', color: '#c172ff', cost: 4, components: ['Potentia', 'Vacuos'] },
+      Sano: { zh: '治癒', color: '#ff9ab8', cost: 3, components: ['Ordo', 'Victus'] },
+      Sensus: { zh: '感官', color: '#7fb4ff', cost: 3, components: ['Aer', 'Spiritus'] },
+      Spiritus: { zh: '靈魂', color: '#cad5ff', cost: 3, components: ['Mortuus', 'Victus'] },
+      Tenebrae: { zh: '黑暗', color: '#454256', cost: 3, components: ['Lux', 'Vacuos'] },
+      Tutamen: { zh: '防護', color: '#9fa7b2', cost: 4, components: ['Instrumentum', 'Terra'] },
+      Vinculum: { zh: '束縛', color: '#9c7bce', cost: 4, components: ['Motus', 'Perditio'] },
+      Alienis: { zh: '異界', color: '#7f65d9', cost: 5, components: ['Tenebrae', 'Vacuos'] },
+      Arbor: { zh: '樹木', color: '#8bbf62', cost: 4, components: ['Aer', 'Herba'] },
+      Auram: { zh: '靈氣', color: '#d7a6ff', cost: 5, components: ['Aer', 'Praecantatio'] },
+      Humanus: { zh: '人類', color: '#f0b68a', cost: 5, components: ['Bestia', 'Cognitio'] },
+      Instrumentum: { zh: '工具', color: '#d8b07d', cost: 4, components: ['Humanus', 'Ordo'] },
+      Fabrico: { zh: '工藝', color: '#d0b18d', cost: 5, components: ['Humanus', 'Instrumentum'] },
+      Lucrum: { zh: '貪婪', color: '#ffd76a', cost: 5, components: ['Fames', 'Humanus'] },
+      Pannus: { zh: '布匹', color: '#cfc2a3', cost: 4, components: ['Bestia', 'Instrumentum'] },
+      Perfodio: { zh: '採掘', color: '#bea37b', cost: 5, components: ['Humanus', 'Terra'] },
+      Telum: { zh: '武器', color: '#d37c70', cost: 5, components: ['Instrumentum', 'Ignis'] },
+      Volatus: { zh: '飛行', color: '#c7e5ff', cost: 4, components: ['Aer', 'Motus'] },
+      Aequalitas: { zh: '平衡', color: '#d8d6c9', cost: 5, components: ['Cognitio', 'Ordo'] },
+      Astrum: { zh: '星辰', color: '#99a9df', cost: 6, components: ['Lux', 'Primordium'] },
+      Caelum: { zh: '天空', color: '#a6d9ff', cost: 4, components: ['Vitreus', 'Metallum'] },
+      Desidia: { zh: '懶惰', color: '#8e819b', cost: 6, components: ['Spiritus', 'Vinculum'] },
+      Electrum: { zh: '電力', color: '#f0dd63', cost: 6, components: ['Potentia', 'Machina'] },
+      Gloria: { zh: '榮耀', color: '#ffe17f', cost: 6, components: ['Humanus', 'Iter'] },
+      Gula: { zh: '暴食', color: '#b88655', cost: 6, components: ['Fames', 'Vacuos'] },
+      Infernus: { zh: '地獄', color: '#d75a35', cost: 6, components: ['Ignis', 'Praecantatio'] },
+      Invidia: { zh: '嫉妒', color: '#73b06d', cost: 6, components: ['Fames', 'Sensus'] },
+      Ira: { zh: '憤怒', color: '#cf4238', cost: 6, components: ['Ignis', 'Telum'] },
+      Luxuria: { zh: '色慾', color: '#d88bc5', cost: 6, components: ['Corpus', 'Fames'] },
+      Magneto: { zh: '磁力', color: '#8aa0b5', cost: 6, components: ['Metallum', 'Iter'] },
+      Meto: { zh: '收割', color: '#cfc468', cost: 5, components: ['Instrumentum', 'Messis'] },
+      Nebrisum: { zh: '深淵', color: '#5f4e8a', cost: 7, components: ['Lucrum', 'Perfodio'] },
+      Primordium: { zh: '原初', color: '#c2b9a4', cost: 4, components: ['Vacuos', 'Motus'] },
+      Radio: { zh: '輻射', color: '#c7ef62', cost: 5, components: ['Lux', 'Potentia'] },
+      Strontio: { zh: '鍶', color: '#d58a8a', cost: 6, components: ['Cognitio', 'Perditio'] },
+      Superbia: { zh: '傲慢', color: '#b99cff', cost: 6, components: ['Vacuos', 'Volatus'] },
+      Tabernus: { zh: '商業', color: '#c8a063', cost: 6, components: ['Tutamen', 'Iter'] },
+      Tempus: { zh: '時間', color: '#9fb9ff', cost: 4, components: ['Vacuos', 'Ordo'] },
+      Terminus: { zh: '終末', color: '#6c5b7c', cost: 7, components: ['Lucrum', 'Alienis'] },
+      Venenum: { zh: '毒', color: '#7dc46b', cost: 3, components: ['Aqua', 'Perditio'] },
+      Vesania: { zh: '瘋狂', color: '#b36cc9', cost: 6, components: ['Cognitio', 'Vitium'] },
+      Vitium: { zh: '污染', color: '#8750b5', cost: 5, components: ['Praecantatio', 'Perditio'] }
+    };
+
+    const EXTRA_ASPECT_NAMES = {
+      Aequalitas: '平衡',
+      Astrum: '星辰',
+      Caelum: '天空',
+      Desidia: '懶惰',
+      Electrum: '電力',
+      Gloria: '榮耀',
+      Gula: '暴食',
+      Infernus: '地獄',
+      Invidia: '嫉妒',
+      Ira: '憤怒',
+      Luxuria: '色慾',
+      Magneto: '磁力',
+      Meto: '收割',
+      Nebrisum: '深淵',
+      Primordium: '原初',
+      Radio: '輻射',
+      Strontio: '鍶',
+      Superbia: '傲慢',
+      Tabernus: '商業',
+      Tempus: '時間',
+      Terminus: '終末',
+      Venenum: '毒',
+      Vesania: '瘋狂',
+      Vitium: '污染'
+    };
+
+    const state = {
+      aspects: structuredClone(DEFAULT_ASPECTS),
+      lastRoute: null,
+      fixedCells: new Map(),
+      blockedCells: new Map(),
+      selectedCell: '0,0'
+    };
+
+const HUIJI_ICON_URLS = {
+      "Aequalitas": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/2/27/%E8%A6%81%E7%B4%A0_Aequalitas.png/64px-%E8%A6%81%E7%B4%A0_Aequalitas.png",
+      "Aer": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/3/36/%E8%A6%81%E7%B4%A0_Aer.png/64px-%E8%A6%81%E7%B4%A0_Aer.png",
+      "Alienis": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/3/3d/%E8%A6%81%E7%B4%A0_Alienis.png/64px-%E8%A6%81%E7%B4%A0_Alienis.png",
+      "Aqua": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/9/96/%E8%A6%81%E7%B4%A0_Aqua.png/64px-%E8%A6%81%E7%B4%A0_Aqua.png",
+      "Arbor": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/3/3b/%E8%A6%81%E7%B4%A0_Arbor.png/64px-%E8%A6%81%E7%B4%A0_Arbor.png",
+      "Astrum": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/4/4d/%E8%A6%81%E7%B4%A0_Astrum.png/64px-%E8%A6%81%E7%B4%A0_Astrum.png",
+      "Auram": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/d/d0/%E8%A6%81%E7%B4%A0_Auram.png/64px-%E8%A6%81%E7%B4%A0_Auram.png",
+      "Bestia": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/1/10/%E8%A6%81%E7%B4%A0_Bestia.png/64px-%E8%A6%81%E7%B4%A0_Bestia.png",
+      "Caelum": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/4/43/%E8%A6%81%E7%B4%A0_Caelum.png/64px-%E8%A6%81%E7%B4%A0_Caelum.png",
+      "Cognitio": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/4/4f/%E8%A6%81%E7%B4%A0_Cognitio.png/64px-%E8%A6%81%E7%B4%A0_Cognitio.png",
+      "Corpus": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/e/ea/%E8%A6%81%E7%B4%A0_Corpus.png/64px-%E8%A6%81%E7%B4%A0_Corpus.png",
+      "Desidia": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/1/1c/%E8%A6%81%E7%B4%A0_Desidia.png/64px-%E8%A6%81%E7%B4%A0_Desidia.png",
+      "Electrum": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/9/95/%E8%A6%81%E7%B4%A0_Electrum.png/64px-%E8%A6%81%E7%B4%A0_Electrum.png",
+      "Exanimis": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/9/9d/%E8%A6%81%E7%B4%A0_Exanimis.png/64px-%E8%A6%81%E7%B4%A0_Exanimis.png",
+      "Fabrico": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/c/c5/%E8%A6%81%E7%B4%A0_Fabrico.png/64px-%E8%A6%81%E7%B4%A0_Fabrico.png",
+      "Fames": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/5/5a/%E8%A6%81%E7%B4%A0_Fames.png/64px-%E8%A6%81%E7%B4%A0_Fames.png",
+      "Gelum": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/6/6d/%E8%A6%81%E7%B4%A0_Gelum.png/64px-%E8%A6%81%E7%B4%A0_Gelum.png",
+      "Gloria": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/f/ff/%E8%A6%81%E7%B4%A0_Gloria.png/64px-%E8%A6%81%E7%B4%A0_Gloria.png",
+      "Gula": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/8/88/%E8%A6%81%E7%B4%A0_Gula.png/64px-%E8%A6%81%E7%B4%A0_Gula.png",
+      "Herba": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/2/26/%E8%A6%81%E7%B4%A0_Herba.png/64px-%E8%A6%81%E7%B4%A0_Herba.png",
+      "Humanus": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/f/ff/%E8%A6%81%E7%B4%A0_Humanus.png/64px-%E8%A6%81%E7%B4%A0_Humanus.png",
+      "Ignis": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/c/cf/%E8%A6%81%E7%B4%A0_Ignis.png/64px-%E8%A6%81%E7%B4%A0_Ignis.png",
+      "Infernus": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/c/ce/%E8%A6%81%E7%B4%A0_Infernus.png/64px-%E8%A6%81%E7%B4%A0_Infernus.png",
+      "Instrumentum": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/8/85/%E8%A6%81%E7%B4%A0_Instrumentum.png/64px-%E8%A6%81%E7%B4%A0_Instrumentum.png",
+      "Invidia": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/0/09/%E8%A6%81%E7%B4%A0_Invidia.png/64px-%E8%A6%81%E7%B4%A0_Invidia.png",
+      "Ira": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/7/7b/%E8%A6%81%E7%B4%A0_Ira.png/64px-%E8%A6%81%E7%B4%A0_Ira.png",
+      "Iter": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/2/23/%E8%A6%81%E7%B4%A0_Iter.png/64px-%E8%A6%81%E7%B4%A0_Iter.png",
+      "Limus": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/e/e9/%E8%A6%81%E7%B4%A0_Limus.png/64px-%E8%A6%81%E7%B4%A0_Limus.png",
+      "Lucrum": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/8/85/%E8%A6%81%E7%B4%A0_Lucrum.png/64px-%E8%A6%81%E7%B4%A0_Lucrum.png",
+      "Lux": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/5/54/%E8%A6%81%E7%B4%A0_Lux.png/64px-%E8%A6%81%E7%B4%A0_Lux.png",
+      "Luxuria": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/1/14/%E8%A6%81%E7%B4%A0_Luxuria.png/64px-%E8%A6%81%E7%B4%A0_Luxuria.png",
+      "Machina": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/9/9a/%E8%A6%81%E7%B4%A0_Machina.png/64px-%E8%A6%81%E7%B4%A0_Machina.png",
+      "Magneto": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/1/11/%E8%A6%81%E7%B4%A0_Magneto.png/64px-%E8%A6%81%E7%B4%A0_Magneto.png",
+      "Messis": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/8/81/%E8%A6%81%E7%B4%A0_Messis.png/64px-%E8%A6%81%E7%B4%A0_Messis.png",
+      "Metallum": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/3/34/%E8%A6%81%E7%B4%A0_Metallum.png/64px-%E8%A6%81%E7%B4%A0_Metallum.png",
+      "Meto": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/2/22/%E8%A6%81%E7%B4%A0_Meto.png/64px-%E8%A6%81%E7%B4%A0_Meto.png",
+      "Mortuus": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/1/1c/%E8%A6%81%E7%B4%A0_Mortuus.png/64px-%E8%A6%81%E7%B4%A0_Mortuus.png",
+      "Motus": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/d/d4/%E8%A6%81%E7%B4%A0_Motus.png/64px-%E8%A6%81%E7%B4%A0_Motus.png",
+      "Nebrisum": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/5/5e/%E8%A6%81%E7%B4%A0_Nebrisum.png/64px-%E8%A6%81%E7%B4%A0_Nebrisum.png",
+      "Ordo": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/3/3c/%E8%A6%81%E7%B4%A0_Ordo.png/64px-%E8%A6%81%E7%B4%A0_Ordo.png",
+      "Pannus": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/7/77/%E8%A6%81%E7%B4%A0_Pannus.png/64px-%E8%A6%81%E7%B4%A0_Pannus.png",
+      "Perditio": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/3/37/%E8%A6%81%E7%B4%A0_Perditio.png/64px-%E8%A6%81%E7%B4%A0_Perditio.png",
+      "Perfodio": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/f/fe/%E8%A6%81%E7%B4%A0_Perfodio.png/64px-%E8%A6%81%E7%B4%A0_Perfodio.png",
+      "Permutatio": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/3/38/%E8%A6%81%E7%B4%A0_Permutatio.png/64px-%E8%A6%81%E7%B4%A0_Permutatio.png",
+      "Potentia": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/a/a9/%E8%A6%81%E7%B4%A0_Potentia.png/64px-%E8%A6%81%E7%B4%A0_Potentia.png",
+      "Praecantatio": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/f/f1/%E8%A6%81%E7%B4%A0_Praecantatio.png/64px-%E8%A6%81%E7%B4%A0_Praecantatio.png",
+      "Primordium": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/4/43/%E8%A6%81%E7%B4%A0_Primordium.png/64px-%E8%A6%81%E7%B4%A0_Primordium.png",
+      "Radio": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/f/f8/%E8%A6%81%E7%B4%A0_Radio.png/64px-%E8%A6%81%E7%B4%A0_Radio.png",
+      "Sano": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/0/0a/%E8%A6%81%E7%B4%A0_Sano.png/64px-%E8%A6%81%E7%B4%A0_Sano.png",
+      "Sensus": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/d/d9/%E8%A6%81%E7%B4%A0_Sensus.png/64px-%E8%A6%81%E7%B4%A0_Sensus.png",
+      "Spiritus": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/3/32/%E8%A6%81%E7%B4%A0_Spiritus.png/64px-%E8%A6%81%E7%B4%A0_Spiritus.png",
+      "Strontio": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/3/3d/%E8%A6%81%E7%B4%A0_Strontio.png/64px-%E8%A6%81%E7%B4%A0_Strontio.png",
+      "Superbia": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/1/13/%E8%A6%81%E7%B4%A0_Superbia.png/64px-%E8%A6%81%E7%B4%A0_Superbia.png",
+      "Tabernus": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/0/0d/%E8%A6%81%E7%B4%A0_Tabernus.png/64px-%E8%A6%81%E7%B4%A0_Tabernus.png",
+      "Telum": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/4/4b/%E8%A6%81%E7%B4%A0_Telum.png/64px-%E8%A6%81%E7%B4%A0_Telum.png",
+      "Tempestas": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/1/18/%E8%A6%81%E7%B4%A0_Tempestas.png/64px-%E8%A6%81%E7%B4%A0_Tempestas.png",
+      "Tempus": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/3/34/%E8%A6%81%E7%B4%A0_Tempus.png/64px-%E8%A6%81%E7%B4%A0_Tempus.png",
+      "Tenebrae": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/8/88/%E8%A6%81%E7%B4%A0_Tenebrae.png/64px-%E8%A6%81%E7%B4%A0_Tenebrae.png",
+      "Terminus": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/0/0e/%E8%A6%81%E7%B4%A0_Terminus.png/64px-%E8%A6%81%E7%B4%A0_Terminus.png",
+      "Terra": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/2/2e/%E8%A6%81%E7%B4%A0_Terra.png/64px-%E8%A6%81%E7%B4%A0_Terra.png",
+      "Tutamen": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/7/75/%E8%A6%81%E7%B4%A0_Tutamen.png/64px-%E8%A6%81%E7%B4%A0_Tutamen.png",
+      "Vacuos": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/e/ee/%E8%A6%81%E7%B4%A0_Vacuos.png/64px-%E8%A6%81%E7%B4%A0_Vacuos.png",
+      "Venenum": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/f/f9/%E8%A6%81%E7%B4%A0_Venenum.png/64px-%E8%A6%81%E7%B4%A0_Venenum.png",
+      "Vesania": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/c/c4/%E8%A6%81%E7%B4%A0_Vesania.png/64px-%E8%A6%81%E7%B4%A0_Vesania.png",
+      "Victus": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/d/da/%E8%A6%81%E7%B4%A0_Victus.png/64px-%E8%A6%81%E7%B4%A0_Victus.png",
+      "Vinculum": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/d/d2/%E8%A6%81%E7%B4%A0_Vinculum.png/64px-%E8%A6%81%E7%B4%A0_Vinculum.png",
+      "Vitium": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/5/5b/%E8%A6%81%E7%B4%A0_Vitium.png/64px-%E8%A6%81%E7%B4%A0_Vitium.png",
+      "Vitreus": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/c/c7/%E8%A6%81%E7%B4%A0_Vitreus.png/64px-%E8%A6%81%E7%B4%A0_Vitreus.png",
+      "Volatus": "https://huiji-thumb.huijistatic.com/gtnh/uploads/thumb/f/f5/%E8%A6%81%E7%B4%A0_Volatus.png/64px-%E8%A6%81%E7%B4%A0_Volatus.png"
+};
+
+    const el = {
+      aspectList: document.querySelector('#aspectList'),
+      aspectListMirror: document.querySelector('#aspectListMirror'),
+      aspectCount: document.querySelector('#aspectCount'),
+      search: document.querySelector('#search'),
+      routeGrid: document.querySelector('#routeGrid'),
+      placedCount: document.querySelector('#placedCount'),
+      totalCost: document.querySelector('#totalCost'),
+      routeLength: document.querySelector('#routeLength'),
+      steps: document.querySelector('#steps'),
+      emptyResult: document.querySelector('#emptyResult'),
+      dataEditor: document.querySelector('#dataEditor'),
+      dataStatus: document.querySelector('#dataStatus'),
+      iconTemplate: document.querySelector('#iconTemplate'),
+      hexBoard: document.querySelector('#hexBoard'),
+      boardSize: document.querySelector('#boardSize'),
+      autoSolveToggle: document.querySelector('#autoSolveToggle'),
+      deskBgColor: document.querySelector('#deskBgColor'),
+      blockToken: document.querySelector('#blockToken')
+    };
+
+    function currentSideLength() {
+      const value = Number(el.boardSize?.value || 4);
+      return Math.min(9, Math.max(2, Number.isFinite(value) ? value : 4));
+    }
+
+    function currentRadius() {
+      return currentSideLength() - 1;
+    }
+
+    function boardCells() {
+      const radius = currentRadius();
+      const cells = [];
+      for (let r = -radius; r <= radius; r++) {
+        const qMin = Math.max(-radius, -r - radius);
+        const qMax = Math.min(radius, -r + radius);
+        for (let q = qMin; q <= qMax; q++) {
+          cells.push({ q, r });
+        }
+      }
+      return cells;
+    }
+
+    function aspectInitial(id) {
+      return id.slice(0, 1).toUpperCase();
+    }
+
+    function proxyHuijiIcon(url) {
+      if (!url || !url.includes('huiji-thumb.huijistatic.com/')) return url;
+      const withoutProtocol = url.replace(/^https?:\/\//, '');
+      return `https://images.weserv.nl/?url=${encodeURIComponent(withoutProtocol)}`;
+    }
+
+    function aspectMarkup(id) {
+      const a = state.aspects[id];
+      const file = `要素_${id}.png`;
+      const customIcon = el.iconTemplate?.value ? el.iconTemplate.value.replaceAll('{id}', encodeURIComponent(id)).replaceAll('{file}', encodeURIComponent(file)) : '';
+      const icon = a?.icon || customIcon || proxyHuijiIcon(HUIJI_ICON_URLS[id]) || '';
+      const glyph = icon
+        ? `<span class="glyph" style="--chip-color:${a?.color || '#888'}"><img src="${icon}" alt="${id}" loading="lazy" onerror="this.replaceWith(document.createTextNode('${aspectInitial(id)}'))"></span>`
+        : `<span class="glyph" style="--chip-color:${a?.color || '#888'}">${aspectInitial(id)}</span>`;
+      return glyph;
+    }
+
+    function aspectZh(id) {
+      return state.aspects[id]?.zh || EXTRA_ASPECT_NAMES[id] || '未命名';
+    }
+
+    function escapeAttr(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('"', '&quot;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
+    }
+
+
+    const LEFT_LIBRARY_ASPECTS = [
+      'Ordo', 'Terra', 'Aqua', 'Permutatio',
+      'Vitreus', 'Victus', 'Metallum', 'Sano',
+      'Tempus', 'Iter', 'Mortuus', 'Herba',
+      'Limus', 'Bestia', 'Caelum', 'Spiritus',
+      'Magneto', 'Aequalitas', 'Corpus', 'Humanus',
+      'Instrumentum', 'Perfodio', 'Luxuria', 'Tutamen',
+      'Machina', 'Gloria', 'Messis', 'Lucrum',
+      'Electrum', 'Tabernus', 'Pannus', 'Fabrico',
+      'Meto', 'Nebrisum'
+    ];
+
+    const RIGHT_LIBRARY_ASPECTS = [
+      'Perditio', 'Ignis', 'Aer', 'Potentia',
+      'Gelum', 'Motus', 'Venenum', 'Vacuos',
+      'Lux', 'Tempestas', 'Vinculum', 'Volatus',
+      'Praecantatio', 'Primordium', 'Radio', 'Fames',
+      'Arbor', 'Tenebrae', 'Vitium', 'Infernus',
+      'Exanimis', 'Auram', 'Superbia', 'Cognitio',
+      'Gula', 'Sensus', 'Astrum', 'Alienis',
+      'Strontio', 'Desidia', 'Invidia', 'Vesania',
+      'Telum', 'Ira', 'Terminus'
+    ];
+
+
+    function aspectChip(id) {
+      const a = state.aspects[id];
+      const supported = !!a;
+      const label = `${id}\n${aspectZh(id)}${supported ? '' : '\n尚未補合成資料'}`;
+      return `
+        <div class="aspect-chip${supported ? '' : ' unsupported'}" draggable="${supported}" data-aspect="${id}" data-label="${escapeAttr(label)}" tabindex="0">
+          ${aspectMarkup(id)}
+        </div>
+      `;
+    }
+
+    function libraryCell(id) {
+      if (!id) return '<div class="aspect-chip empty" aria-hidden="true"></div>';
+      return aspectChip(id);
+    }
+
+
+    function sortedAspectIds() {
+      return Object.keys(state.aspects).sort((a, b) => a.localeCompare(b));
+    }
+
+    function renderAspectList() {
+      const q = el.search.value.trim().toLowerCase();
+      const matchesSearch = id => {
+        if (!id) return !q;
+        const a = state.aspects[id];
+        return !q || id.toLowerCase().includes(q) || aspectZh(id).toLowerCase().includes(q) || (a?.components || []).join(' ').toLowerCase().includes(q);
+      };
+      const leftIds = LEFT_LIBRARY_ASPECTS.filter(matchesSearch);
+      const rightIds = RIGHT_LIBRARY_ASPECTS.filter(matchesSearch);
+
+      el.aspectCount.textContent = `${Object.keys(state.aspects).length} aspects`;
+      el.aspectList.innerHTML = leftIds.map(libraryCell).join('');
+      el.aspectListMirror.innerHTML = rightIds.map(libraryCell).join('');
+    }
+
+    function neighborsOf(id) {
+      const out = [];
+      for (const [other, data] of Object.entries(state.aspects)) {
+        if (other === id) continue;
+        const comps = data.components || [];
+        const ownComps = state.aspects[id]?.components || [];
+        if (comps.includes(id)) out.push({ id: other, reason: `${id}+…` });
+        else if (ownComps.includes(other)) out.push({ id: other, reason: `${other}+…` });
+      }
+      return out;
+    }
+
+    function solve(start, end) {
+      if (!state.aspects[start] || !state.aspects[end]) return null;
+      const dist = new Map([[start, 0]]);
+      const prev = new Map();
+      const reason = new Map();
+      const unvisited = new Set(Object.keys(state.aspects));
+
+      while (unvisited.size) {
+        let current = null;
+        let best = Infinity;
+        for (const id of unvisited) {
+          const d = dist.get(id) ?? Infinity;
+          if (d < best) { best = d; current = id; }
+        }
+        if (current === null || best === Infinity) break;
+        unvisited.delete(current);
+        if (current === end) break;
+
+        for (const next of neighborsOf(current)) {
+          if (!unvisited.has(next.id)) continue;
+          const cost = Number(state.aspects[next.id]?.cost ?? 1);
+          const alt = best + Math.max(0, cost);
+          if (alt < (dist.get(next.id) ?? Infinity)) {
+            dist.set(next.id, alt);
+            prev.set(next.id, current);
+            reason.set(next.id, next.reason);
+          }
+        }
+      }
+
+      if (!dist.has(end)) return null;
+      const route = [];
+      const reasons = [];
+      let cursor = end;
+      while (cursor) {
+        route.unshift(cursor);
+        reasons.unshift(reason.get(cursor) || 'start');
+        cursor = prev.get(cursor);
+      }
+      return { route, reasons, cost: dist.get(end) };
+    }
+
+    function solveExactSteps(start, end, steps) {
+      if (!state.aspects[start] || !state.aspects[end]) return null;
+      let layer = new Map([[start, { cost: 0, route: [start] }]]);
+      for (let step = 0; step < steps; step++) {
+        const nextLayer = new Map();
+        for (const entry of layer.values()) {
+          const current = entry.route[entry.route.length - 1];
+          for (const next of neighborsOf(current)) {
+            const cost = entry.cost + Number(state.aspects[next.id]?.cost ?? 1);
+            const nextRoute = entry.route.concat(next.id);
+            const old = nextLayer.get(next.id);
+            if (!old || cost < old.cost) nextLayer.set(next.id, { cost, route: nextRoute });
+          }
+        }
+        layer = nextLayer;
+      }
+      return layer.get(end) || null;
+    }
+
+    function hexDistance(a, b) {
+      return (Math.abs(a.q - b.q) + Math.abs(a.q + a.r - b.q - b.r) + Math.abs(a.r - b.r)) / 2;
+    }
+
+    function hexLine(a, b) {
+      const n = hexDistance(a, b);
+      const cells = [];
+      for (let i = 0; i <= n; i++) {
+        const t = n === 0 ? 0 : i / n;
+        const q = Math.round(a.q + (b.q - a.q) * t);
+        const r = Math.round(a.r + (b.r - a.r) * t);
+        cells.push({ q, r });
+      }
+      return cells;
+    }
+
+    function boardPoint(cell) {
+      const radius = currentRadius();
+      const metrics = boardMetrics(radius);
+      const centerX = metrics.width / 2;
+      const centerY = metrics.height / 2;
+      const x = centerX + metrics.size * 1.5 * cell.q;
+      const y = centerY + metrics.size * Math.sqrt(3) * (cell.r + cell.q / 2);
+      return { x, y };
+    }
+
+    function boardMetrics(radius = currentRadius()) {
+      const wrap = el.hexBoard?.parentElement;
+      const availableWidth = Math.max(260, wrap?.clientWidth ? wrap.clientWidth - 28 : 520);
+      const occupiedHeight = wrap
+        ? [...wrap.children].filter(child => child !== el.hexBoard).reduce((sum, child) => sum + child.offsetHeight + 8, 0)
+        : 150;
+      const availableHeight = Math.max(220, wrap?.clientHeight ? wrap.clientHeight - occupiedHeight - 12 : 470);
+      const side = radius + 1;
+      const maxRow = side + radius;
+      const widthUnits = 1.5 * (2 * radius) + 2.2;
+      const heightUnits = Math.sqrt(3) * maxRow + 2.05;
+      const widthSize = availableWidth / widthUnits;
+      const heightSize = availableHeight / heightUnits;
+      const size = Math.max(13, Math.min(42, widthSize, heightSize));
+      const width = Math.min(availableWidth, Math.ceil(size * widthUnits));
+      const height = Math.min(availableHeight, Math.ceil(size * heightUnits));
+      return { size, width, height };
+    }
+
+    function cellKey(cell) {
+      return `${cell.q},${cell.r}`;
+    }
+
+    function parseCellKey(key) {
+      const [q, r] = key.split(',').map(Number);
+      return { q, r };
+    }
+
+    function boardNeighbors(cell) {
+      const from = boardPoint(cell);
+      const metrics = boardMetrics();
+      const maxDistance = metrics.size * 1.82;
+      return boardCells().filter(next => {
+        const key = cellKey(next);
+        if (key === cellKey(cell) || state.blockedCells.has(key)) return false;
+        const point = boardPoint(next);
+        const distance = Math.hypot(point.x - from.x, point.y - from.y);
+        return distance <= maxDistance;
+      });
+    }
+
+    function shortestCellPath(fromKey, toKey) {
+      const queue = [fromKey];
+      const prev = new Map([[fromKey, null]]);
+      while (queue.length) {
+        const currentKey = queue.shift();
+        if (currentKey === toKey) break;
+        for (const next of boardNeighbors(parseCellKey(currentKey))) {
+          const nextKey = cellKey(next);
+          if (prev.has(nextKey)) continue;
+          prev.set(nextKey, currentKey);
+          queue.push(nextKey);
+        }
+      }
+      if (!prev.has(toKey)) return null;
+      const path = [];
+      let cursor = toKey;
+      while (cursor) {
+        path.unshift(cursor);
+        cursor = prev.get(cursor);
+      }
+      return path;
+    }
+
+    function renderHexBoard(assignments = new Map()) {
+      const radius = currentRadius();
+      const metrics = boardMetrics(radius);
+      el.hexBoard.style.setProperty('--board-w', `${metrics.width}px`);
+      el.hexBoard.style.setProperty('--board-h', `${metrics.height}px`);
+      el.hexBoard.style.setProperty('--cell-w', `${metrics.size * 1.92}px`);
+      el.hexBoard.style.setProperty('--cell-h', `${metrics.size * 1.64}px`);
+      el.hexBoard.style.setProperty('--glyph-size', `${Math.max(14, Math.min(metrics.size * 1.12, metrics.size * 1.64 * .82))}px`);
+      el.hexBoard.style.setProperty('--block-size', `${Math.max(16, Math.min(32, metrics.size * .95))}px`);
+      const validKeys = new Set(boardCells().map(cellKey));
+      for (const key of [...state.fixedCells.keys()]) {
+        if (!validKeys.has(key)) state.fixedCells.delete(key);
+      }
+      for (const key of [...state.blockedCells.keys()]) {
+        if (!validKeys.has(key)) state.blockedCells.delete(key);
+      }
+      if (!validKeys.has(state.selectedCell)) state.selectedCell = '0,0';
+      const cells = boardCells().map(cell => {
+        const key = cellKey(cell);
+        const fixed = state.fixedCells.get(key);
+        const blocked = state.blockedCells.has(key);
+        const value = fixed || assignments.get(key);
+        const point = boardPoint(cell);
+        const classes = ['hex-cell'];
+        if (blocked) classes.push('blocked');
+        if (value && !blocked) classes.push('filled');
+        if (fixed) classes.push('fixed');
+        if (key === state.selectedCell) classes.push('selected');
+        const content = blocked
+          ? '<span class="block-marker" draggable="true" data-block-token="true" aria-label="不可放置格">×</span>'
+          : value ? aspectMarkup(value, true) : '';
+        return `<div class="${classes.join(' ')}" data-cell="${key}" style="left:${point.x}px;top:${point.y}px">${content}</div>`;
+      }).join('');
+      el.hexBoard.innerHTML = cells;
+    }
+
+    function setFixedCell(key, aspect) {
+      if (!state.aspects[aspect]) return;
+      if (state.blockedCells.has(key)) return;
+      state.fixedCells.set(key, aspect);
+      state.selectedCell = key;
+      renderHexBoard(new Map());
+      if (el.autoSolveToggle.checked && state.fixedCells.size >= 2) autoConnectFixedCells();
+    }
+
+    function clearSelectedCell() {
+      if (!state.selectedCell) return;
+      state.fixedCells.delete(state.selectedCell);
+      state.blockedCells.delete(state.selectedCell);
+      renderHexBoard(new Map());
+    }
+
+    function toggleBlockedCell(key) {
+      if (state.fixedCells.has(key)) state.fixedCells.delete(key);
+      if (state.blockedCells.has(key)) state.blockedCells.delete(key);
+      else state.blockedCells.set(key, true);
+      state.selectedCell = key;
+      renderHexBoard(new Map());
+      renderRoute(null);
+    }
+
+    function autoConnectFixedCells() {
+      const fixed = [...state.fixedCells.entries()].map(([key, aspect]) => ({ key, aspect }));
+      if (fixed.length < 2) {
+        renderHexBoard(new Map());
+        renderRoute(null);
+        el.emptyResult.textContent = '至少放兩個固定元素，才能自動連線。';
+        return;
+      }
+
+      const connected = new Set([fixed[0].key]);
+      const remaining = new Set(fixed.slice(1).map(item => item.key));
+      const fixedByKey = new Map(fixed.map(item => [item.key, item.aspect]));
+      const assignments = new Map(fixedByKey);
+      const routes = [];
+
+      while (remaining.size) {
+        let best = null;
+        for (const fromKey of connected) {
+          for (const toKey of remaining) {
+            const cells = shortestCellPath(fromKey, toKey);
+            if (!cells) continue;
+            const start = assignments.get(fromKey) || fixedByKey.get(fromKey);
+            const end = fixedByKey.get(toKey);
+            const solved = solveExactSteps(start, end, cells.length - 1);
+            if (!solved) continue;
+            const cost = routeCost(solved.route);
+            if (!best || cost < best.cost || (cost === best.cost && cells.length < best.cells.length)) {
+              best = { fromKey, toKey, cells, route: solved.route, cost };
+            }
+          }
+        }
+
+        if (!best) {
+          break;
+        }
+
+        best.cells.forEach((key, index) => assignments.set(key, best.route[index]));
+        connected.add(best.toKey);
+        remaining.delete(best.toKey);
+        routes.push({ label: `${fixedByKey.get(best.fromKey)} @ ${best.fromKey} → ${fixedByKey.get(best.toKey)} @ ${best.toKey}`, route: best.route });
+      }
+
+      renderHexBoard(assignments);
+      if (!routes.length || remaining.size) {
+        el.routeGrid.innerHTML = '<p>固定點之間找不到符合格數的 aspect 路線。可以移動固定點，或在右側 JSON 補 aspect 關係。</p>';
+        el.placedCount.textContent = '-';
+        el.totalCost.textContent = '-';
+        el.routeLength.textContent = '-';
+        el.steps.innerHTML = '';
+        el.emptyResult.style.display = 'block';
+        return;
+      }
+      renderMultiRoutes(routes, '任意固定元素自動連線');
+    }
+
+    function renderRoute(result) {
+      state.lastRoute = result;
+      if (!result) {
+        el.routeGrid.innerHTML = '<p>找不到可連接路線。請檢查 JSON 是否缺少中間 aspect 或合成關係。</p>';
+        el.placedCount.textContent = '-';
+        el.totalCost.textContent = '-';
+        el.routeLength.textContent = '-';
+        el.steps.innerHTML = '';
+        el.emptyResult.style.display = 'block';
+        return;
+      }
+
+      el.routeGrid.innerHTML = result.route.map((id, index) => {
+        const fixed = index === 0 || index === result.route.length - 1;
+        const node = `<div class="node ${fixed ? 'fixed' : ''}">${aspectMarkup(id, true)}<div class="node-cost">${state.aspects[id].zh || ''} · ${state.aspects[id].cost ?? 1}</div></div>`;
+        if (index === result.route.length - 1) return node;
+        return node + `<div class="edge" data-reason="${result.reasons[index + 1] || ''}"></div>`;
+      }).join('');
+
+      const placed = Math.max(0, result.route.length - 2);
+      const placedCost = result.route.slice(1, -1).reduce((sum, id) => sum + Number(state.aspects[id].cost ?? 1), 0);
+      el.placedCount.textContent = String(placed);
+      el.totalCost.textContent = String(placedCost);
+      el.routeLength.textContent = String(result.route.length);
+      el.steps.innerHTML = result.route.map((id, index) => {
+        const role = index === 0 ? '固定' : index === result.route.length - 1 ? '固定' : '填入';
+        const data = state.aspects[id];
+        const comps = (data.components || []).length ? `；來源 ${data.components.join(' + ')}` : '；原始元素';
+        return `<li><strong>${role}</strong>：<code>${id}</code> ${data.zh || ''}${comps}，成本 ${data.cost ?? 1}</li>`;
+      }).join('');
+      el.emptyResult.style.display = 'none';
+    }
+
+    function edgeReason(from, to) {
+      const toComps = state.aspects[to]?.components || [];
+      const fromComps = state.aspects[from]?.components || [];
+      if (toComps.includes(from)) return `${from}+…`;
+      if (fromComps.includes(to)) return `${to}+…`;
+      return '手動';
+    }
+
+    function routeCost(route) {
+      return route.slice(1, -1).reduce((sum, id) => sum + Number(state.aspects[id]?.cost ?? 1), 0);
+    }
+
+    function renderMultiRoutes(routes, title) {
+      state.lastRoute = { routes, title };
+      const totalPlaced = routes.reduce((sum, item) => sum + Math.max(0, item.route.length - 2), 0);
+      const totalCost = routes.reduce((sum, item) => sum + routeCost(item.route), 0);
+      const longest = routes.reduce((max, item) => Math.max(max, item.route.length), 0);
+      el.routeGrid.innerHTML = `<div class="multi-routes">${routes.map(item => `
+        <div class="route-row">
+          <div class="route-title"><strong>${item.label}</strong><span>放置 ${Math.max(0, item.route.length - 2)} · cost ${routeCost(item.route)}</span></div>
+          <div class="route-line">${item.route.map((id, index) => {
+            const fixed = index === 0 || index === item.route.length - 1;
+            const node = `<div class="node ${fixed ? 'fixed' : ''}">${aspectMarkup(id, true)}<div class="node-cost">${state.aspects[id]?.zh || ''} · ${state.aspects[id]?.cost ?? 1}</div></div>`;
+            if (index === item.route.length - 1) return node;
+            return node + `<div class="edge" data-reason="${edgeReason(id, item.route[index + 1])}"></div>`;
+          }).join('')}</div>
+        </div>`).join('')}</div>`;
+      el.placedCount.textContent = String(totalPlaced);
+      el.totalCost.textContent = String(totalCost);
+      el.routeLength.textContent = `${routes.length} 條 / 最長 ${longest}`;
+      el.steps.innerHTML = routes.map(item => `<li><strong>${item.label}</strong>：${item.route.map(id => `<code>${id}</code>`).join(' → ')}</li>`).join('');
+      el.emptyResult.style.display = 'none';
+    }
+
+    function applyDataFromEditor() {
+      try {
+        const parsed = JSON.parse(el.dataEditor.value);
+        for (const [id, data] of Object.entries(parsed)) {
+          if (!data || typeof data !== 'object') throw new Error(`${id} 必須是物件`);
+          if (!Array.isArray(data.components)) throw new Error(`${id}.components 必須是陣列`);
+        }
+        state.aspects = parsed;
+        el.dataStatus.textContent = '已套用資料。';
+        el.dataStatus.className = 'status ok';
+        renderAspectList();
+        renderHexBoard();
+      } catch (error) {
+        el.dataStatus.textContent = error.message;
+        el.dataStatus.className = 'status error';
+      }
+    }
+
+    function resetData() {
+      state.aspects = structuredClone(DEFAULT_ASPECTS);
+      state.fixedCells.clear();
+      state.blockedCells.clear();
+      syncEditor();
+      el.dataStatus.textContent = '已還原預設資料。';
+      el.dataStatus.className = 'status ok';
+      renderAspectList();
+      renderHexBoard();
+      renderRoute(null);
+    }
+
+    function syncEditor() {
+      el.dataEditor.value = JSON.stringify(state.aspects, null, 2);
+    }
+
+    function clearDragGhost() {
+      document.body.classList.remove('dragging-aspect');
+      document.querySelector('.drag-ghost')?.remove();
+    }
+
+    function makeDragGhost(chip) {
+      clearDragGhost();
+      const ghost = document.createElement('div');
+      ghost.className = 'drag-ghost';
+      const glyph = chip.querySelector('.glyph')?.cloneNode(true);
+      if (glyph) ghost.append(glyph);
+      else ghost.textContent = chip.textContent.trim();
+      document.body.append(ghost);
+      document.body.classList.add('dragging-aspect');
+      ghost.getBoundingClientRect();
+      return ghost;
+    }
+
+    document.addEventListener('dragstart', event => {
+      const blockToken = event.target.closest('[data-block-token], #blockToken');
+      if (blockToken) {
+        event.dataTransfer.setData('text/plain', 'block');
+        event.dataTransfer.setData('application/x-thaumcraft-tool', 'block');
+        event.dataTransfer.effectAllowed = 'copyMove';
+        event.dataTransfer.setDragImage(makeDragGhost(blockToken), 17, 17);
+        return;
+      }
+      const chip = event.target.closest('[data-aspect]');
+      if (!chip) return;
+      if (chip.classList.contains('unsupported')) {
+        event.preventDefault();
+        return;
+      }
+      event.dataTransfer.setData('text/plain', chip.dataset.aspect);
+      event.dataTransfer.effectAllowed = 'copy';
+      event.dataTransfer.setDragImage(makeDragGhost(chip), 12, 12);
+    });
+
+    document.addEventListener('dragend', clearDragGhost);
+    document.addEventListener('drop', clearDragGhost);
+
+    function handleAspectClick(event) {
+      const chip = event.target.closest('[data-aspect]');
+      if (!chip) return;
+      if (chip.classList.contains('unsupported')) return;
+      setFixedCell(state.selectedCell, chip.dataset.aspect);
+    }
+
+    el.aspectList.addEventListener('click', handleAspectClick);
+    el.aspectListMirror.addEventListener('click', handleAspectClick);
+
+    el.hexBoard.addEventListener('click', event => {
+      const cell = event.target.closest('[data-cell]');
+      if (!cell) return;
+      state.selectedCell = cell.dataset.cell;
+      el.hexBoard.focus?.();
+      renderHexBoard(new Map());
+    });
+
+    el.hexBoard.addEventListener('dragover', event => {
+      const cell = event.target.closest('[data-cell]');
+      if (!cell) return;
+      event.preventDefault();
+      cell.classList.add('drop-target');
+    });
+
+    el.hexBoard.addEventListener('dragleave', event => {
+      const cell = event.target.closest('[data-cell]');
+      if (cell) cell.classList.remove('drop-target');
+    });
+
+    el.hexBoard.addEventListener('drop', event => {
+      const cell = event.target.closest('[data-cell]');
+      if (!cell) return;
+      event.preventDefault();
+      cell.classList.remove('drop-target');
+      if (event.dataTransfer.getData('application/x-thaumcraft-tool') === 'block' || event.dataTransfer.getData('text/plain') === 'block') {
+        toggleBlockedCell(cell.dataset.cell);
+        return;
+      }
+      setFixedCell(cell.dataset.cell, event.dataTransfer.getData('text/plain'));
+    });
+
+    document.querySelector('#autoConnectBtn').addEventListener('click', autoConnectFixedCells);
+    document.querySelector('#clearSelectedCellBtn').addEventListener('click', clearSelectedCell);
+    document.querySelector('#clearBoardBtn').addEventListener('click', () => {
+      state.fixedCells.clear();
+      state.blockedCells.clear();
+      renderHexBoard(new Map());
+      renderRoute(null);
+    });
+    function refreshBoardOnly() {
+      renderHexBoard(new Map());
+      renderRoute(null);
+    }
+
+    let resizeRefreshQueued = false;
+    function queueBoardRefresh() {
+      if (resizeRefreshQueued) return;
+      resizeRefreshQueued = true;
+      requestAnimationFrame(() => {
+        resizeRefreshQueued = false;
+        refreshBoardOnly();
+      });
+    }
+
+    el.boardSize.addEventListener('input', refreshBoardOnly);
+    function applyPageBackground(color) {
+      const safeColor = /^#[0-9a-f]{6}$/i.test(color) ? color : '#17120e';
+      const r = parseInt(safeColor.slice(1, 3), 16);
+      const g = parseInt(safeColor.slice(3, 5), 16);
+      const b = parseInt(safeColor.slice(5, 7), 16);
+      const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+      document.documentElement.style.setProperty('--page-bg', safeColor);
+      document.documentElement.style.setProperty('--page-text', luminance > 0.55 ? '#17120e' : '#fff4d8');
+      document.documentElement.style.setProperty('--page-muted', luminance > 0.55 ? '#3f352c' : '#d3c4a8');
+      el.deskBgColor.value = safeColor;
+    }
+    el.deskBgColor.addEventListener('input', event => applyPageBackground(event.target.value));
+    document.querySelectorAll('[data-bg]').forEach(button => {
+      button.addEventListener('click', () => applyPageBackground(button.dataset.bg));
+    });
+    el.iconTemplate.addEventListener('change', () => {
+      renderAspectList();
+      renderHexBoard(new Map());
+      if (state.lastRoute?.routes) renderMultiRoutes(state.lastRoute.routes, state.lastRoute.title || '路線');
+      else if (state.lastRoute?.route) renderRoute(state.lastRoute);
+    });
+    document.querySelector('#applyDataBtn').addEventListener('click', applyDataFromEditor);
+    document.querySelector('#resetDataBtn').addEventListener('click', resetData);
+    el.search.addEventListener('input', renderAspectList);
+    window.addEventListener('resize', queueBoardRefresh);
+    if ('ResizeObserver' in window) {
+      const boardObserver = new ResizeObserver(queueBoardRefresh);
+      boardObserver.observe(el.hexBoard.parentElement);
+    }
+
+    applyPageBackground(el.deskBgColor.value);
+    syncEditor();
+    renderAspectList();
+    renderHexBoard();
+    renderRoute(null);
+  </script>
+</body>
+</html>

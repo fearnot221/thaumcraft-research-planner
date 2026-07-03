@@ -1,0 +1,6 @@
+node_modules/
+extracted.txt
+extract-pdf-text.mjs
+video-frames/
+.DS_Store
+
