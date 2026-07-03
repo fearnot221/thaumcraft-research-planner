@@ -1077,6 +1077,12 @@ const HUIJI_ICON_URLS = {
       blockToken: document.querySelector('#blockToken')
     };
 
+    let aspectNeighborCache = new Map();
+
+    function clearAspectCaches() {
+      aspectNeighborCache = new Map();
+    }
+
     function currentSideLength() {
       const value = Number(el.boardSize?.value || 4);
       return Math.min(9, Math.max(2, Number.isFinite(value) ? value : 4));
@@ -1195,6 +1201,7 @@ const HUIJI_ICON_URLS = {
     }
 
     function neighborsOf(id) {
+      if (aspectNeighborCache.has(id)) return aspectNeighborCache.get(id);
       const out = [];
       for (const [other, data] of Object.entries(state.aspects)) {
         if (other === id) continue;
@@ -1203,6 +1210,7 @@ const HUIJI_ICON_URLS = {
         if (comps.includes(id)) out.push({ id: other, reason: `${id}+…` });
         else if (ownComps.includes(other)) out.push({ id: other, reason: `${other}+…` });
       }
+      aspectNeighborCache.set(id, out);
       return out;
     }
 
@@ -1657,7 +1665,7 @@ const HUIJI_ICON_URLS = {
       state.fixedCells.set(key, aspect);
       state.selectedCell = key;
       renderHexBoard(new Map());
-      if (el.autoSolveToggle.checked && state.fixedCells.size >= 2) autoConnectFixedCells();
+      if (el.autoSolveToggle.checked && state.fixedCells.size >= 2) scheduleAutoConnect();
     }
 
     function clearSelectedCell() {
@@ -1690,18 +1698,15 @@ const HUIJI_ICON_URLS = {
       let bestPlan = null;
       for (const selectedFixed of choices) {
         if (selectedFixed.length < 2) continue;
-        for (let rootIndex = 0; rootIndex < selectedFixed.length; rootIndex++) {
-          const rootedFixed = selectedFixed.slice(rootIndex).concat(selectedFixed.slice(0, rootIndex));
-          const plan = buildSteinerPlan(rootedFixed, fixedByKey) || buildConnectionPlan(rootedFixed, fixedByKey);
-          if (!plan) continue;
-          if (
-            !bestPlan ||
-            plan.totalCost < bestPlan.totalCost ||
-            (plan.totalCost === bestPlan.totalCost && plan.totalPlaced < bestPlan.totalPlaced) ||
-            (plan.totalCost === bestPlan.totalCost && plan.totalPlaced === bestPlan.totalPlaced && plan.longest < bestPlan.longest)
-          ) {
-            bestPlan = plan;
-          }
+        const plan = (selectedFixed.length <= 6 ? buildSteinerPlan(selectedFixed, fixedByKey) : null) || buildConnectionPlan(selectedFixed, fixedByKey);
+        if (!plan) continue;
+        if (
+          !bestPlan ||
+          plan.totalCost < bestPlan.totalCost ||
+          (plan.totalCost === bestPlan.totalCost && plan.totalPlaced < bestPlan.totalPlaced) ||
+          (plan.totalCost === bestPlan.totalCost && plan.totalPlaced === bestPlan.totalPlaced && plan.longest < bestPlan.longest)
+        ) {
+          bestPlan = plan;
         }
       }
 
@@ -1718,6 +1723,15 @@ const HUIJI_ICON_URLS = {
 
       renderHexBoard(bestPlan.assignments);
       renderMultiRoutes(bestPlan.routes, '最少材料自動連線', bestPlan);
+    }
+
+    let autoConnectTimer = 0;
+    function scheduleAutoConnect() {
+      if (autoConnectTimer) clearTimeout(autoConnectTimer);
+      autoConnectTimer = setTimeout(() => {
+        autoConnectTimer = 0;
+        autoConnectFixedCells();
+      }, 80);
     }
 
     function renderRoute(result) {
@@ -1795,6 +1809,7 @@ const HUIJI_ICON_URLS = {
           if (!Array.isArray(data.components)) throw new Error(`${id}.components 必須是陣列`);
         }
         state.aspects = parsed;
+        clearAspectCaches();
         el.dataStatus.textContent = '已套用資料。';
         el.dataStatus.className = 'status ok';
         renderAspectList();
@@ -1807,6 +1822,7 @@ const HUIJI_ICON_URLS = {
 
     function resetData() {
       state.aspects = structuredClone(DEFAULT_ASPECTS);
+      clearAspectCaches();
       state.fixedCells.clear();
       state.blockedCells.clear();
       syncEditor();
@@ -1859,8 +1875,26 @@ const HUIJI_ICON_URLS = {
       event.dataTransfer.setDragImage(makeDragGhost(chip), 12, 12);
     });
 
-    document.addEventListener('dragend', clearDragGhost);
-    document.addEventListener('drop', clearDragGhost);
+    let activeDropTarget = null;
+    function setActiveDropTarget(cell) {
+      if (activeDropTarget === cell) return;
+      activeDropTarget?.classList.remove('drop-target');
+      activeDropTarget = cell;
+      activeDropTarget?.classList.add('drop-target');
+    }
+
+    function clearActiveDropTarget() {
+      setActiveDropTarget(null);
+    }
+
+    document.addEventListener('dragend', () => {
+      clearDragGhost();
+      clearActiveDropTarget();
+    });
+    document.addEventListener('drop', () => {
+      clearDragGhost();
+      clearActiveDropTarget();
+    });
 
     function handleAspectClick(event) {
       const chip = event.target.closest('[data-aspect]');
@@ -1884,19 +1918,19 @@ const HUIJI_ICON_URLS = {
       const cell = event.target.closest('[data-cell]');
       if (!cell) return;
       event.preventDefault();
-      cell.classList.add('drop-target');
+      setActiveDropTarget(cell);
     });
 
     el.hexBoard.addEventListener('dragleave', event => {
       const cell = event.target.closest('[data-cell]');
-      if (cell) cell.classList.remove('drop-target');
+      if (cell && !el.hexBoard.contains(event.relatedTarget)) clearActiveDropTarget();
     });
 
     el.hexBoard.addEventListener('drop', event => {
       const cell = event.target.closest('[data-cell]');
       if (!cell) return;
       event.preventDefault();
-      cell.classList.remove('drop-target');
+      clearActiveDropTarget();
       if (event.dataTransfer.getData('application/x-thaumcraft-tool') === 'block' || event.dataTransfer.getData('text/plain') === 'block') {
         toggleBlockedCell(cell.dataset.cell);
         return;
